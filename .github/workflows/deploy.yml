@@ -33,7 +33,6 @@ jobs:
       - name: Debug SSH details
         run: |
           echo "User: ${{ secrets.EC2_USER }}"
-          echo "Host: ${{ secrets.EC2_HOST }}"
           echo "IP: ${{ secrets.EC2_IP }}"
 
 
@@ -61,7 +60,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i ec2-key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i ec2-key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
             docker rm -f mdanasapp || true
             docker pull 1mdanas1/node-app:${{ secrets.ROLL_NO }}
             docker run -d -p 2077:5000 --name mdanasapp 1mdanas1/node-app:${{ secrets.ROLL_NO }}
