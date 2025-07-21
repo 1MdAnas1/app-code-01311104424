@@ -28,11 +28,11 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t username/app-code-${{ github.sha }} .
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/app-code-${{ github.sha }} .
         
       - name: Tag Docker Image with Roll Number
         run: |
-          docker tag username/app-code-${{ github.sha }} username/app-code-${{ secrets.ROLLNO }}
+          docker tag ${{ secrets.DOCKER_USERNAME }}/app-code-${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/app-code-${{ secrets.ROLLNO }}
 
       - name: Log in to DockerHub
         uses: docker/login-action@v2
@@ -42,7 +42,7 @@ jobs:
 
       - name: Push Docker Image to DockerHub
         run: |
-          docker push username/app-code-${{ secrets.ROLLNO }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/app-code-${{ secrets.ROLLNO }}
 
       - name: Deploy to EC2 Instance
         run: |
