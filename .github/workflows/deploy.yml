@@ -1,49 +1,68 @@
-name: CI Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  build:
-    name: Build Application & Docker Image
+  build-test-docker-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '16'
+          node-version: '18'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: npm install
 
-      - name: Run Tests
+      - name: Run tests
         run: npm test
 
-      - name: Build Docker Image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Debug image tag
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/app-code-${{ github.sha }} .
-        
-      - name: Tag Docker Image with Roll Number
-        run: |
-          docker tag ${{ secrets.DOCKER_USERNAME }}/app-code-${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/app-code-${{ secrets.ROLLNO }}
+          echo "Tag will be: 1mdanas1/node-app:${{ secrets.ROLL_NO }}"
 
       - name: Log in to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      - name: Push Docker Image to DockerHub
+      - name: Verify tag format
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/app-code-${{ secrets.ROLLNO }}
+          echo "Checking tag: ${{ secrets.ROLL_NO }}"
+          if [[ ! "${{ secrets.ROLL_NO }}" =~ ^[a-zA-Z0-9_.-]+$ ]]; then
+            echo "❌ Invalid tag format: ${{ secrets.ROLL_NO }}"
+            exit 1
+          fi
 
-      - name: Deploy to EC2 Instance
+      - name: Build Docker image
         run: |
-          ssh -i ${{ secrets.EC2_KEY }} -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_IP }} "docker pull username/app-code-${{ secrets.ROLLNO }} && docker run -d -p 3000:3000 username/app-code-${{ secrets.ROLLNO }}"
+           IMAGE_TAG="1mdanas1/node-app:${{ secrets.ROLL_NO }}"
+           echo "Building Docker image: $IMAGE_TAG"
+           docker buildx build --platform linux/amd64 --load -t "$IMAGE_TAG" .
+
+      - name: Push Docker image
+        run: |
+         IMAGE_TAG="1mdanas1/node-app:${{ secrets.ROLL_NO }}"
+         echo "Pushing image: $IMAGE_TAG"
+         docker push "$IMAGE_TAG"
+
+
+      - name: Setup SSH key
+        run: |
+          echo "${{ secrets.EC2_KEY }}" | base64 -d > ec2-key.pem
+          chmod 400 ec2-key.pem
+
+      - name: Deploy to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ec2-key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            docker rm -f app || true
+            docker pull 1mdanas1/node-app:${{ secrets.ROLL_NO }}
+            docker run -d -p 2003:5000 --name app 1mdanas1/node-app:${{ secrets.ROLL_NO }}
+          EOF
